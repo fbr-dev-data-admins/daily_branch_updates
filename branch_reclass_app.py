@@ -1,6 +1,7 @@
 """Streamlit tool for RE query 40677 branch reclassification."""
 
 import base64
+import hmac
 import json
 import time
 from copy import deepcopy
@@ -47,22 +48,24 @@ WSLOPE_REGION_ZIP_PREFIXES = [
 ]
 
 
-def check_password():
+def check_password() -> bool:
+    """Show the app only after the configured password has been entered."""
+
     def password_entered():
-        if st.session_state["password"] == st.secrets["app"]["password"]:
-            st.session_state["password_correct"] = True
-        else:
-            st.session_state["password_correct"] = False
+        entered_password = st.session_state.pop("password", "")
+        configured_password = str(st.secrets["app"]["password"])
+        st.session_state["password_correct"] = hmac.compare_digest(
+            entered_password, configured_password
+        )
 
     if "password_correct" not in st.session_state:
         st.text_input("Password", type="password", on_change=password_entered, key="password")
         return False
-    elif not st.session_state["password_correct"]:
+    if not st.session_state["password_correct"]:
         st.text_input("Password", type="password", on_change=password_entered, key="password")
         st.error("Password incorrect")
         return False
-    else:
-        return True
+    return True
 
 
 def clean_string(value) -> str:
