@@ -215,6 +215,14 @@ def build_calendar_preview(run_dates: dict, weeks_back: int = 4) -> pd.DataFrame
     return pd.DataFrame(weeks, columns=["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"])
 
 
+def previous_business_date(today: date | None = None) -> date:
+    """Return the most recent weekday before today."""
+    candidate = (today or datetime.today().date()) - timedelta(days=1)
+    while candidate.weekday() >= 5:
+        candidate -= timedelta(days=1)
+    return candidate
+
+
 def evaluate_rules(row: pd.Series) -> list[tuple[str, str]]:
     """Return proposals from only the highest-priority matching rule category.
 
@@ -445,7 +453,7 @@ def render_auth_sidebar() -> bool:
 
 
 def render_app() -> None:
-    st.title("RE Query 40677 Branch Reclassification Tool")
+    st.title("Daily Branch Reclassification Tool")
     authenticated = render_auth_sidebar()
 
     if "run_cache" not in st.session_state:
@@ -461,14 +469,21 @@ def render_app() -> None:
         st.error(cache_error)
 
     st.subheader("Recent run dates")
-    st.caption("The prior four calendar weeks through today; ✅ indicates a previously processed date.")
+    st.caption("✅ indicates a previously processed date.")
     st.table(build_calendar_preview(st.session_state.run_cache.get("run_dates", {})))
+    st.caption(
+        "If you need to process dates further than one week back, the saved query "
+        "criteria must be temporarily updated."
+    )
 
-    yesterday = datetime.today().date() - timedelta(days=1)
-    date_range = st.date_input("Select date range", value=(yesterday, yesterday))
-    complete_range = isinstance(date_range, (tuple, list)) and len(date_range) == 2
-    if not complete_range:
-        st.info("Select both a start date and an end date before running the query.")
+    default_date = previous_business_date()
+    date_columns = st.columns(2)
+    start_date = date_columns[0].date_input(
+        "Start date", value=default_date, format="MM/DD/YYYY"
+    )
+    end_date = date_columns[1].date_input(
+        "End date", value=default_date, format="MM/DD/YYYY"
+    )
 
     if not FORCE_IN_QUERY_ID.strip():
         st.info(
@@ -477,11 +492,11 @@ def render_app() -> None:
         )
 
     if st.button(
-        "Run Query 40677",
-        disabled=not authenticated or not complete_range or not FORCE_IN_QUERY_ID.strip(),
+        "Retrieve data",
+        disabled=not authenticated or not FORCE_IN_QUERY_ID.strip(),
     ):
         try:
-            with st.spinner("Running saved query 40677 and the WSlope Force-In query..."):
+            with st.spinner("Retrieving branch and WSlope Force-In data..."):
                 st.session_state.query_40677_results = run_query_40677()
                 st.session_state.force_in_query_results = run_saved_query(FORCE_IN_QUERY_ID)
         except Exception as exc:
@@ -493,7 +508,6 @@ def render_app() -> None:
     if (
         "query_40677_results" not in st.session_state
         or "force_in_query_results" not in st.session_state
-        or not complete_range
     ):
         return
 
@@ -511,7 +525,6 @@ def render_app() -> None:
         for value in force_in_df["Constituent ID"]
         if clean_string(value)
     }
-    start_date, end_date = date_range
     if start_date > end_date:
         st.error("The start date must not be after the end date.")
         return
@@ -537,14 +550,14 @@ def render_app() -> None:
     if not conflicts_df.empty:
         st.warning(f"{len(conflicts_df)} conflicting row(s) require manual review.")
         conflict_preview_columns = ["GFImpID", "Name", "GFAttrDesc", "Flag"]
-        st.dataframe(conflicts_df[conflict_preview_columns], use_container_width=True)
+        st.dataframe(conflicts_df[conflict_preview_columns], width="stretch")
 
     st.subheader("Review sheet preview")
-    st.dataframe(review_df, use_container_width=True, hide_index=True, height=None)
+    st.dataframe(review_df, width="stretch", hide_index=True)
     st.subheader("Import preview")
-    st.dataframe(import_df.head(20), use_container_width=True, hide_index=True)
+    st.dataframe(import_df.head(20), width="stretch", hide_index=True)
     st.subheader("No-change preview")
-    st.dataframe(no_change_df.head(20), use_container_width=True, hide_index=True)
+    st.dataframe(no_change_df.head(20), width="stretch", hide_index=True)
 
     csv_bytes = import_df.to_csv(index=False).encode("utf-8")
     workbook_bytes = build_review_workbook(review_df, no_change_df)
