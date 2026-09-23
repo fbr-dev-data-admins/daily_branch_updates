@@ -354,7 +354,6 @@ def classify_rows(
             import_rows.append(row)
             continue
 
-        row["Flag"] = record["flag"]
         gift_reference = clean_string(row["Gift Reference"])
         state = clean_string(row["Preferred State"])
         branch = clean_string(row["GFAttrDesc"])
@@ -366,7 +365,17 @@ def classify_rows(
             and form_name.startswith("D")
             and (not zip_matches_wslope(row["Preferred ZIP"]) or donor_region == "Denver")
         )
-        if record["flag"] or gift_reference or colorado_review:
+        review_flags = []
+        if record["flag"]:
+            review_flags.append(record["flag"])
+        if gift_reference:
+            review_flags.append("Review: Gift Reference contains text")
+        if colorado_review:
+            review_flags.append(
+                "Review: Colorado non-Main record may need branch reassignment"
+            )
+        row["Flag"] = "; ".join(review_flags)
+        if review_flags:
             review_rows.append(row)
         else:
             no_change_rows.append(row)
