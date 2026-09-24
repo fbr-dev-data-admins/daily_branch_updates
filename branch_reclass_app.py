@@ -409,6 +409,11 @@ def build_review_workbook(review_df: pd.DataFrame, no_change_df: pd.DataFrame) -
     return output.getvalue()
 
 
+def build_import_csv(import_df: pd.DataFrame) -> bytes:
+    """Return a UTF-8 CSV whose records use Windows-compatible CR-LF endings."""
+    return import_df.to_csv(index=False, lineterminator="\r\n").encode("utf-8")
+
+
 def record_download(start_date: date, end_date: date, rows_changed: int) -> None:
     """Download-button callback: write one run entry for every selected date."""
     try:
@@ -568,14 +573,14 @@ def render_app() -> None:
     st.subheader("No-change preview")
     st.dataframe(no_change_df.head(20), width="stretch", hide_index=True)
 
-    csv_bytes = import_df.to_csv(index=False).encode("utf-8")
+    csv_bytes = build_import_csv(import_df)
     workbook_bytes = build_review_workbook(review_df, no_change_df)
     download_columns = st.columns(2)
     download_columns[0].download_button(
         "Download Import CSV",
         data=csv_bytes,
         file_name=f"branch_reclass_import_{start_date}_{end_date}.csv",
-        mime="text/csv",
+        mime="text/csv; charset=utf-8",
         on_click=record_download,
         args=(start_date, end_date, len(import_df)),
     )
