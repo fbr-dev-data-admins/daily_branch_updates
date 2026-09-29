@@ -223,7 +223,9 @@ def previous_business_date(today: date | None = None) -> date:
     return candidate
 
 
-def evaluate_rules(row: pd.Series) -> list[tuple[str, str]]:
+def evaluate_rules(
+    row: pd.Series, force_in_wslope: bool = False
+) -> list[tuple[str, str]]:
     """Return proposals from only the highest-priority matching rule category.
 
     ZIP/state and Monthly Donor Region deliberately share one priority category,
@@ -263,7 +265,13 @@ def evaluate_rules(row: pd.Series) -> list[tuple[str, str]]:
         gift_reference_rules.append(("Gift Reference", "Wyoming"))
     categories.append(gift_reference_rules)
 
-    # 4. EN donation form name.
+    # 4. WSlope Force-In list.
+    force_in = []
+    if force_in_wslope:
+        force_in.append(("WSlope Force-In", "WSlope"))
+    categories.append(force_in)
+
+    # 5. EN donation form name.
     donation_form = []
     if branch == "Main" and form_name.startswith("S"):
         donation_form.append(("EN Donation Form Name", "WSlope"))
@@ -271,7 +279,7 @@ def evaluate_rules(row: pd.Series) -> list[tuple[str, str]]:
         donation_form.append(("EN Donation Form Name", "Wyoming"))
     categories.append(donation_form)
 
-    # 5. Regional ZIP/state and Monthly Donor Region share a priority tier.
+    # 6. Regional ZIP/state and Monthly Donor Region share a priority tier.
     regional = []
     if branch == "Main" and zip_matches_wslope(row["Preferred ZIP"]):
         regional.append(("ZIP/State Update", "WSlope"))
@@ -303,19 +311,11 @@ def classify_rows(
     for index, row in df.reset_index(drop=True).iterrows():
         original_branch = clean_string(row["GFAttrDesc"])
         force_in = clean_string(row["Constituent ID"]) in force_in_constituent_ids
-        if force_in:
-            # Force-In is evaluated first and completely replaces all ordinary rule
-            # proposals for the row, so ordinary rule conflicts cannot supersede it.
-            proposals = [("WSlope Force-In", "WSlope")]
-            clean_change = original_branch != "WSlope"
-            final_branch = "WSlope"
-            flag = ""
-        else:
-            proposals = evaluate_rules(row)
-            targets = {target for _reason, target in proposals}
-            clean_change = len(targets) == 1 and next(iter(targets)) != original_branch
-            final_branch = next(iter(targets)) if clean_change else original_branch
-            flag = conflict_rule_flag(proposals) if len(targets) > 1 else ""
+        proposals = evaluate_rules(row, force_in_wslope=force_in)
+        targets = {target for _reason, target in proposals}
+        clean_change = len(targets) == 1 and next(iter(targets)) != original_branch
+        final_branch = next(iter(targets)) if clean_change else original_branch
+        flag = conflict_rule_flag(proposals) if len(targets) > 1 else ""
         records.append(
             {
                 "index": index,
@@ -351,6 +351,8 @@ def classify_rows(
             row["Original Branch"] = clean_string(row["GFAttrDesc"])
             row["GFAttrDesc"] = record["final_branch"]
             row["Reason"] = "; ".join(reasons)
+            if clean_string(row["Appeal ID"]).endswith("WORK"):
+                row["Reason"] += " - ENSURE MATCHING GIFT BRANCH UPDATE"
             import_rows.append(row)
             continue
 
