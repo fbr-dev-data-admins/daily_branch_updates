@@ -553,13 +553,14 @@ def render_app() -> None:
     )
 
     metric_values = [
-        ("Total fetched", len(raw_df)),
-        ("After date filter", len(filtered_df)),
-        ("After dedup", len(deduped_df)),
+        # ("Total fetched", len(raw_df)),
+        # ("After date filter", len(filtered_df)),
+        # ("After dedup", len(deduped_df)),
         ("Import", len(import_df)),
         ("Review", len(review_df)),
         ("No change", len(no_change_df)),
     ]
+    
     for column, (label, value) in zip(st.columns(6), metric_values):
         column.metric(label, value)
 
