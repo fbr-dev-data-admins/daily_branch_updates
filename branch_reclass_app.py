@@ -243,7 +243,8 @@ def evaluate_rules(
     # 1. Appeal/package assignments to Main.
     appeal_package = []
     if branch != "Main" and (
-        package_id in ["Serv", "Ardent"]
+        #package_id in ["Serv", "Ardent"]
+        package_id in ["Ardent"]
         or appeal_id.endswith("GS")
         or appeal_id.endswith("GOLF")
     ):
